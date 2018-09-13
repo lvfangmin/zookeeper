@@ -34,6 +34,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.zookeeper.server.persistence.FileHeader;
 import org.apache.zookeeper.server.persistence.FileTxnLog;
 import org.apache.zookeeper.server.util.SerializeUtils;
+import org.apache.zookeeper.server.util.DigestCalculator;
+import org.apache.zookeeper.txn.TxnDigest;
 import org.apache.zookeeper.txn.TxnHeader;
 
 @InterfaceAudience.Public
@@ -61,6 +63,9 @@ public class LogFormatter {
                 + fhdr.getDbid() + " txnlog format version "
                 + fhdr.getVersion());
 
+        // enable digest
+        DigestCalculator.setDigestEnabled(true);
+
         int count = 0;
         while (true) {
             long crcValue;
@@ -85,8 +90,11 @@ public class LogFormatter {
                 throw new IOException("CRC doesn't match " + crcValue +
                         " vs " + crc.getValue());
             }
-            TxnHeader hdr = new TxnHeader();
-            Record txn = SerializeUtils.deserializeTxn(bytes, hdr);
+            TxnLogEntry entry = SerializeUtils.deserializeTxn(bytes);
+            TxnHeader hdr = entry.getHeader();
+            Record txn = entry.getTxn();
+            TxnDigest digest = entry.getDigest();
+
             System.out.println(DateFormat.getDateTimeInstance(DateFormat.SHORT,
                     DateFormat.LONG).format(new Date(hdr.getTime()))
                     + " session 0x"
@@ -95,7 +103,8 @@ public class LogFormatter {
                     + Long.toHexString(hdr.getCxid())
                     + " zxid 0x"
                     + Long.toHexString(hdr.getZxid())
-                    + " " + TraceFormatter.op2String(hdr.getType()) + " " + txn);
+                    + " " + TraceFormatter.op2String(hdr.getType()) + " " + txn
+                    + " digest " + digest);
             if (logStream.readByte("EOR") != 'B') {
                 LOG.error("Last transaction was partial.");
                 throw new EOFException("Last transaction was partial.");

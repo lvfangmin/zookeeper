@@ -39,6 +39,8 @@ import org.apache.jute.OutputArchive;
 import org.apache.jute.Record;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.zookeeper.common.IOUtils;
+import org.apache.zookeeper.txn.TxnDigest;
 import org.apache.zookeeper.txn.TxnHeader;
 
 /**
@@ -225,15 +227,28 @@ public class Util {
      * @return serialized transaction record
      * @throws IOException
      */
-    public static byte[] marshallTxnEntry(TxnHeader hdr, Record txn)
-            throws IOException {
+    public static byte[] marshallTxnEntry(TxnHeader hdr, Record txn) {
+        return marshallTxnEntry(hdr, txn, null);
+    }
+
+    public static byte[] marshallTxnEntry(TxnHeader hdr, Record txn, TxnDigest digest) {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         OutputArchive boa = BinaryOutputArchive.getArchive(baos);
 
-        hdr.serialize(boa, "hdr");
-        if (txn != null) {
-            txn.serialize(boa, "txn");
+        try {
+            hdr.serialize(boa, "hdr");
+            if (txn != null) {
+                txn.serialize(boa, "txn");
+            }
+            if (digest != null) {
+                digest.serialize(boa, "digest");
+            }
+        } catch (IOException e) {
+            LOG.error("This really should be impossible", e);
+        } finally {
+            IOUtils.cleanup(LOG, baos);
         }
+
         return baos.toByteArray();
     }
 

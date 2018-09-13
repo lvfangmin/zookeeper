@@ -25,6 +25,7 @@ import org.apache.zookeeper.server.Request;
 import org.apache.zookeeper.test.ClientBase;
 import org.apache.zookeeper.test.TestUtils;
 import org.apache.zookeeper.txn.SetDataTxn;
+import org.apache.zookeeper.txn.TxnDigest;
 import org.apache.zookeeper.txn.TxnHeader;
 import org.junit.After;
 import org.junit.Before;
@@ -187,7 +188,7 @@ public class FileTxnSnapLogTest {
 
         long zxid = fileTxnSnapLog.restore(new DataTree(), sessions, new FileTxnSnapLog.PlayBackListener() {
             @Override
-            public void onTxnLoaded(TxnHeader hdr, Record rec) {
+            public void onTxnLoaded(TxnHeader hdr, Record rec, TxnDigest digest) {
                 // empty by default
             }
         });

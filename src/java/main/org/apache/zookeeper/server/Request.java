@@ -27,6 +27,7 @@ import org.apache.zookeeper.ZooDefs.OpCode;
 import org.apache.zookeeper.common.Time;
 import org.apache.zookeeper.data.Id;
 import org.apache.zookeeper.server.quorum.flexible.QuorumVerifier;
+import org.apache.zookeeper.txn.TxnDigest;
 import org.apache.zookeeper.txn.TxnHeader;
 
 /**
@@ -83,7 +84,9 @@ public class Request {
     private KeeperException e;
 
     public QuorumVerifier qv = null;
-    
+
+    private TxnDigest txnDigest;
+
     /**
      * If this is a create or close request for a local-only session.
      */
@@ -296,5 +299,13 @@ public class Request {
 
     public KeeperException getException() {
         return e;
+    }
+
+    public TxnDigest getTxnDigest() {
+        return txnDigest;
+    }
+
+    public void setTxnDigest(TxnDigest txnDigest) {
+        this.txnDigest = txnDigest;
     }
 }

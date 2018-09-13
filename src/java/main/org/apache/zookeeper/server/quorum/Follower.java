@@ -29,9 +29,11 @@ import org.apache.zookeeper.server.Request;
 import org.apache.zookeeper.server.ServerMetrics;
 import org.apache.zookeeper.server.quorum.flexible.QuorumVerifier;
 import org.apache.zookeeper.server.quorum.QuorumPeer.QuorumServer;
+import org.apache.zookeeper.server.TxnLogEntry;
 import org.apache.zookeeper.server.util.SerializeUtils;
 import org.apache.zookeeper.server.util.ZxidUtils;
 import org.apache.zookeeper.txn.SetDataTxn;
+import org.apache.zookeeper.txn.TxnDigest;
 import org.apache.zookeeper.txn.TxnHeader;
 
 /**
@@ -128,8 +130,10 @@ public class Follower extends Learner{
             ping(qp);            
             break;
         case Leader.PROPOSAL:           
-            TxnHeader hdr = new TxnHeader();
-            Record txn = SerializeUtils.deserializeTxn(qp.getData(), hdr);
+            TxnLogEntry logEntry = SerializeUtils.deserializeTxn(qp.getData());
+            TxnHeader hdr = logEntry.getHeader();
+            Record txn = logEntry.getTxn();
+            TxnDigest digest = logEntry.getDigest();
             if (hdr.getZxid() != lastQueued + 1) {
                 LOG.warn("Got zxid 0x"
                         + Long.toHexString(hdr.getZxid())
@@ -144,7 +148,7 @@ public class Follower extends Learner{
                self.setLastSeenQuorumVerifier(qv, true);                               
             }
             
-            fzk.logRequest(hdr, txn);
+            fzk.logRequest(hdr, txn, digest);
             break;
         case Leader.COMMIT:
             fzk.commit(qp.getZxid());

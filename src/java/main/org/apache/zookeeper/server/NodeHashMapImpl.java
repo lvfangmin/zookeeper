@@ -22,8 +22,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-import org.apache.zookeeper.server.util.CRC32DigestCalculator;
-import org.apache.zookeeper.server.util.AbstractDigestCalculator;
+import org.apache.zookeeper.server.util.DigestCalculator;
 import org.apache.zookeeper.server.util.AdHash;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,14 +36,14 @@ public class NodeHashMapImpl implements NodeHashMap {
     private static final Logger LOG = LoggerFactory.getLogger(NodeHashMap.class);
 
     private final ConcurrentHashMap<String, DataNode> nodes;
+    private final boolean digestEnabled;
 
-    private final AbstractDigestCalculator digestCalculator;
     private AdHash hash;
 
     public NodeHashMapImpl() {
         nodes = new ConcurrentHashMap<String, DataNode>();
-        digestCalculator = new CRC32DigestCalculator();
         hash = new AdHash();
+        digestEnabled = DigestCalculator.digestEnabled();
     }
 
     @Override
@@ -101,16 +100,15 @@ public class NodeHashMapImpl implements NodeHashMap {
     }
 
     private void addDigest(String path, DataNode node) {
-        hash.addDigest(digestCalculator.calculateDigest(path, node));
+        if (digestEnabled) {
+            hash.addDigest(DigestCalculator.calculateDigest(path, node));
+        } 
     }
 
     private void removeDigest(String path, DataNode node) {
-        hash.removeDigest(digestCalculator.calculateDigest(path, node));
-    }
-
-    @Override
-    public boolean digestEnabled() {
-        return AbstractDigestCalculator.digestEnabled();
+        if (digestEnabled) {
+            hash.removeDigest(DigestCalculator.calculateDigest(path, node));
+        }
     }
 
     @Override

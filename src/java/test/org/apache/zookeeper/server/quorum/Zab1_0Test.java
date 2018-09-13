@@ -359,7 +359,8 @@ public class Zab1_0Test extends ZKTestCase {
                 zxid = ZxidUtils.makeZxid(1, i);
                 String path = "/foo-"+ i;
                 zkDb.processTxn(new TxnHeader(13,1000+i,zxid,30+i,ZooDefs.OpCode.create), 
-                                                new CreateTxn(path, "fpjwasalsohere".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, false, 1));
+                                                new CreateTxn(path, "fpjwasalsohere".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, false, 1), 
+                                                null);
                 Stat stat = new Stat();
                 Assert.assertEquals("fpjwasalsohere", new String(zkDb.getData(path, stat, null)));
             }                
@@ -599,7 +600,7 @@ public class Zab1_0Test extends ZKTestCase {
                     // Setup a database with a single /foo node
                     ZKDatabase zkDb = new ZKDatabase(new FileTxnSnapLog(tmpDir, tmpDir));
                     final long firstZxid = ZxidUtils.makeZxid(1, 1);
-                    zkDb.processTxn(new TxnHeader(13, 1313, firstZxid, 33, ZooDefs.OpCode.create), new CreateTxn("/foo", "data1".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, false, 1));
+                    zkDb.processTxn(new TxnHeader(13, 1313, firstZxid, 33, ZooDefs.OpCode.create), new CreateTxn("/foo", "data1".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, false, 1), null);
                     Stat stat = new Stat();
                     Assert.assertEquals("data1", new String(zkDb.getData("/foo", stat, null)));
 
@@ -734,7 +735,7 @@ public class Zab1_0Test extends ZKTestCase {
                     // Setup a database with a single /foo node
                     ZKDatabase zkDb = new ZKDatabase(new FileTxnSnapLog(tmpDir, tmpDir));
                     final long firstZxid = ZxidUtils.makeZxid(1, 1);
-                    zkDb.processTxn(new TxnHeader(13, 1313, firstZxid, 33, ZooDefs.OpCode.create), new CreateTxn("/foo", "data1".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, false, 1));
+                    zkDb.processTxn(new TxnHeader(13, 1313, firstZxid, 33, ZooDefs.OpCode.create), new CreateTxn("/foo", "data1".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE, false, 1), null);
                     Stat stat = new Stat();
                     Assert.assertEquals("data1", new String(zkDb.getData("/foo", stat, null)));
 
@@ -979,11 +980,11 @@ public class Zab1_0Test extends ZKTestCase {
                     zkDb.processTxn(new TxnHeader(13, 1313, foo1Zxid, 33,
                             ZooDefs.OpCode.create), new CreateTxn("/foo1",
                             "data1".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE,
-                            false, 1));
+                            false, 1), null);
                     zkDb.processTxn(new TxnHeader(13, 1313, foo2Zxid, 33,
                             ZooDefs.OpCode.create), new CreateTxn("/foo2",
                             "data1".getBytes(), ZooDefs.Ids.OPEN_ACL_UNSAFE,
-                            false, 1));
+                            false, 1), null);
                     Stat stat = new Stat();
                     Assert.assertEquals("data1",
                             new String(zkDb.getData("/foo1", stat, null)));

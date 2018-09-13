@@ -301,13 +301,6 @@ public class LearnerHandler extends ZooKeeperThread {
             break;
         case Leader.PROPOSAL:
             type = "PROPOSAL";
-            TxnHeader hdr = new TxnHeader();
-            try {
-                SerializeUtils.deserializeTxn(p.getData(), hdr);
-                // mess = "transaction: " + txn.toString();
-            } catch (IOException e) {
-                LOG.warn("Unexpected exception",e);
-            }
             break;
         case Leader.REQUEST:
             type = "REQUEST";

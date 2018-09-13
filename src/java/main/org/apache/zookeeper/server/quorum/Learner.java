@@ -47,9 +47,11 @@ import org.apache.zookeeper.server.ServerCnxn;
 import org.apache.zookeeper.server.ZooTrace;
 import org.apache.zookeeper.server.quorum.QuorumPeer.QuorumServer;
 import org.apache.zookeeper.server.quorum.flexible.QuorumVerifier;
+import org.apache.zookeeper.server.TxnLogEntry;
 import org.apache.zookeeper.server.util.SerializeUtils;
 import org.apache.zookeeper.server.util.ZxidUtils;
 import org.apache.zookeeper.txn.SetDataTxn;
+import org.apache.zookeeper.txn.TxnDigest;
 import org.apache.zookeeper.txn.TxnHeader;
 
 /**
@@ -61,6 +63,7 @@ public class Learner {
     static class PacketInFlight {
         TxnHeader hdr;
         Record rec;
+        TxnDigest digest;
     }
     QuorumPeer self;
     LearnerZooKeeperServer zk;
@@ -431,6 +434,7 @@ public class Learner {
             //If we are not going to take the snapshot be sure the transactions are not applied in memory
             // but written out to the transaction log
             boolean writeToTxnLog = !snapshotNeeded;
+            TxnLogEntry logEntry;
             // we are now going to start getting transactions to apply followed by an UPTODATE
             outerLoop:
             while (self.isRunning()) {
@@ -438,8 +442,10 @@ public class Learner {
                 switch(qp.getType()) {
                 case Leader.PROPOSAL:
                     PacketInFlight pif = new PacketInFlight();
-                    pif.hdr = new TxnHeader();
-                    pif.rec = SerializeUtils.deserializeTxn(qp.getData(), pif.hdr);
+                    logEntry = SerializeUtils.deserializeTxn(qp.getData());
+                    pif.hdr = logEntry.getHeader();
+                    pif.rec = logEntry.getTxn();
+                    pif.digest = logEntry.getDigest();
                     if (pif.hdr.getZxid() != lastQueued + 1) {
                     LOG.warn("Got zxid 0x"
                             + Long.toHexString(pif.hdr.getZxid())
@@ -472,6 +478,9 @@ public class Learner {
                             LOG.warn("Committing " + qp.getZxid() + ", but next proposal is " + pif.hdr.getZxid());
                         } else {
                             zk.processTxn(pif.hdr, pif.rec);
+                            if(!syncSnapshot) {
+                                zk.compareDigest(pif.hdr, pif.rec, pif.digest);
+                            }
                             packetsNotCommitted.remove();
                         }
                     } else {
@@ -488,7 +497,11 @@ public class Learner {
                         long suggestedLeaderId = buffer.getLong();
                         byte[] remainingdata = new byte[buffer.remaining()];
                         buffer.get(remainingdata);
-                        packet.rec = SerializeUtils.deserializeTxn(remainingdata, packet.hdr);
+                        logEntry = SerializeUtils.deserializeTxn(remainingdata);
+                        packet.hdr = logEntry.getHeader();
+                        packet.rec = logEntry.getTxn();
+                        packet.digest = logEntry.getDigest();
+
                         QuorumVerifier qv = self.configFromString(new String(((SetDataTxn)packet.rec).getData()));
                         boolean majorChange =
                                 self.processReconfig(qv, suggestedLeaderId, qp.getZxid(), true);
@@ -496,7 +509,10 @@ public class Learner {
                             throw new Exception("changes proposed in reconfig");
                         }
                     } else {
-                        packet.rec = SerializeUtils.deserializeTxn(qp.getData(), packet.hdr);
+                        logEntry = SerializeUtils.deserializeTxn(qp.getData());
+                        packet.rec = logEntry.getTxn();
+                        packet.hdr = logEntry.getHeader();
+                        packet.digest = logEntry.getDigest();
                         // Log warning message if txn comes out-of-order
                         if (packet.hdr.getZxid() != lastQueued + 1) {
                             LOG.warn("Got zxid 0x"
@@ -509,6 +525,9 @@ public class Learner {
                     if (!writeToTxnLog) {
                         // Apply to db directly if we haven't taken the snapshot
                         zk.processTxn(packet.hdr, packet.rec);
+                        if (!syncSnapshot) {
+                            zk.compareDigest(packet.hdr, packet.rec, packet.digest);
+                        }
                     } else {
                         packetsNotCommitted.add(packet);
                         packetsCommitted.add(qp.getZxid());
@@ -573,7 +592,7 @@ public class Learner {
         if (zk instanceof FollowerZooKeeperServer) {
             FollowerZooKeeperServer fzk = (FollowerZooKeeperServer)zk;
             for(PacketInFlight p: packetsNotCommitted) {
-                fzk.logRequest(p.hdr, p.rec);
+                fzk.logRequest(p.hdr, p.rec, p.digest);
             }
             for(Long zxid: packetsCommitted) {
                 fzk.commit(zxid);
@@ -597,6 +616,7 @@ public class Learner {
                         p.hdr.getCxid(), p.hdr.getType(), null, null);
                 request.setTxn(p.rec);
                 request.setHdr(p.hdr);
+                request.setTxnDigest(p.digest);
                 ozk.commitRequest(request);
             }
         } else {

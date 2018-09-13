@@ -73,6 +73,7 @@ import org.apache.zookeeper.server.auth.ServerAuthenticationProvider;
 import org.apache.zookeeper.server.persistence.FileTxnSnapLog;
 import org.apache.zookeeper.server.quorum.ReadOnlyZooKeeperServer;
 import org.apache.zookeeper.txn.CreateSessionTxn;
+import org.apache.zookeeper.txn.TxnDigest;
 import org.apache.zookeeper.txn.TxnHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -636,11 +637,28 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         return requestsInProcess.get();
     }
 
+    static class PrecalculatedDigest {
+        final long nodeDigest;
+        final long treeDigest;
+
+        PrecalculatedDigest(long nodeDigest, long treeDigest) {
+            this.nodeDigest = nodeDigest;
+            this.treeDigest = treeDigest;
+        }
+    }
+
+    public void compareDigest(TxnHeader header, Record txn, TxnDigest digest) {
+        zkDb.compareDigest(header, txn, digest);
+    }
+
     /**
      * This structure is used to facilitate information sharing between PrepRP
      * and FinalRP.
      */
     static class ChangeRecord {
+        PrecalculatedDigest precalculatedDigest;
+        byte[] data;
+
         ChangeRecord(long zxid, String path, StatPersisted stat, int childCount,
                 List<ACL> acl) {
             this.zxid = zxid;
@@ -665,8 +683,11 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
             if (this.stat != null) {
                 DataTree.copyStatPersisted(this.stat, stat);
             }
-            return new ChangeRecord(zxid, path, stat, childCount,
+            ChangeRecord changeRecord = new ChangeRecord(zxid, path, stat, childCount,
                     acl == null ? new ArrayList<ACL>() : new ArrayList<ACL>(acl));
+            changeRecord.precalculatedDigest = precalculatedDigest;
+            changeRecord.data = data;
+            return changeRecord;
         }
     }
 
@@ -1232,6 +1253,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         ProcessTxnResult rc;
         int opCode = request != null ? request.type : hdr.getType();
         long sessionId = request != null ? request.sessionId : hdr.getClientId();
+        TxnDigest digest = request != null ? request.getTxnDigest() : null;
 
         if (opCode == OpCode.createSession) {
             if (hdr != null && txn instanceof CreateSessionTxn) {
@@ -1247,7 +1269,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
         }
 
         if (hdr != null) {
-            rc = getZKDatabase().processTxn(hdr, txn);
+            rc = getZKDatabase().processTxn(hdr, txn, digest);
         } else {
             rc = new ProcessTxnResult();
         }

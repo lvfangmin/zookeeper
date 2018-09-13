@@ -41,7 +41,7 @@ import org.apache.zookeeper.data.ACL;
 import org.apache.zookeeper.data.Stat;
 import org.apache.zookeeper.data.StatPersisted;
 import org.apache.zookeeper.server.ServerMetrics;
-import org.apache.zookeeper.server.util.AbstractDigestCalculator;
+import org.apache.zookeeper.server.util.DigestCalculator;
 import org.apache.zookeeper.txn.CheckVersionTxn;
 import org.apache.zookeeper.txn.CreateContainerTxn;
 import org.apache.zookeeper.txn.CreateTTLTxn;
@@ -52,6 +52,7 @@ import org.apache.zookeeper.txn.MultiTxn;
 import org.apache.zookeeper.txn.SetACLTxn;
 import org.apache.zookeeper.txn.SetDataTxn;
 import org.apache.zookeeper.txn.Txn;
+import org.apache.zookeeper.txn.TxnDigest;
 import org.apache.zookeeper.txn.TxnHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -154,9 +155,6 @@ public class DataTree {
 
     private final ReferenceCountedACLCache aclCache = new ReferenceCountedACLCache();
 
-    // The current digest version being used in the digest calculation
-    private final int digestVersion = AbstractDigestCalculator.getDigestVersion();
-
     // The maximum number of tree digests that we will keep in our history
     public static final int DIGEST_LOG_LIMIT = 1024;
 
@@ -166,6 +164,8 @@ public class DataTree {
 
     // The digest associated with the highest zxid in the data tree.
     private volatile ZxidDigest lastProcessedZxidDigest;
+
+    private boolean firstMismatchTxn = true;
 
     // Will be notified when digest mismatch event triggered.
     private List<DigestWatcher> digestWatchers = new ArrayList<>();
@@ -482,15 +482,8 @@ public class DataTree {
         int lastSlash = path.lastIndexOf('/');
         String parentName = path.substring(0, lastSlash);
         String childName = path.substring(lastSlash + 1);
-        StatPersisted stat = new StatPersisted();
-        stat.setCtime(time);
-        stat.setMtime(time);
-        stat.setCzxid(zxid);
-        stat.setMzxid(zxid);
-        stat.setPzxid(zxid);
-        stat.setVersion(0);
-        stat.setAversion(0);
-        stat.setEphemeralOwner(ephemeralOwner);
+        StatPersisted stat = createStat(zxid, time, ephemeralOwner);
+
         DataNode parent = nodes.get(parentName);
         if (parent == null) {
             throw new KeeperException.NoNodeException();
@@ -832,6 +825,12 @@ public class DataTree {
     }
 
     public volatile long lastProcessedZxid = 0;
+
+    public ProcessTxnResult processTxn(TxnHeader header, Record txn, TxnDigest digest) {
+        ProcessTxnResult result = processTxn(header, txn);
+        compareDigest(header, txn, digest);
+        return result;
+    }
 
     public ProcessTxnResult processTxn(TxnHeader header, Record txn) {
         return this.processTxn(header, txn, false);
@@ -1551,7 +1550,7 @@ public class DataTree {
      * Add the digest to the historical list, and update the latest zxid digest.
      */
     private void logZxidDigest(long zxid, long digest) {
-        ZxidDigest zxidDigest = new ZxidDigest(zxid, digestVersion, digest);
+        ZxidDigest zxidDigest = new ZxidDigest(zxid, DigestCalculator.DIGEST_VERSION, digest);
         lastProcessedZxidDigest = zxidDigest;
         if (zxidDigest.zxid % 128 == 0) {
             synchronized (digestLog) {
@@ -1572,7 +1571,7 @@ public class DataTree {
      * @return true if the digest is serialized successfully
      */
     public Boolean serializeZxidDigest(OutputArchive oa) throws IOException {
-        if (!nodes.digestEnabled()) {
+        if (!DigestCalculator.digestEnabled()) {
             return false;
         }
 
@@ -1593,7 +1592,7 @@ public class DataTree {
      * @return the true if it deserialized successfully
      */
     public Boolean deserializeZxidDigest(InputArchive ia) throws IOException {
-        if (!nodes.digestEnabled()) {
+        if (!DigestCalculator.digestEnabled()) {
             return false;
         }
 
@@ -1619,10 +1618,10 @@ public class DataTree {
      */
     public void compareSnapshotDigests(long zxid) {
         if (zxid == digestFromLoadedSnapshot.zxid) {
-            if (digestVersion != digestFromLoadedSnapshot.digestVersion) {
+            if (DigestCalculator.DIGEST_VERSION != digestFromLoadedSnapshot.digestVersion) {
                 LOG.info("Digest version changed, local: {}, new: {}, " + 
                         "skip comparing digest now.", 
-                        digestFromLoadedSnapshot.digestVersion, digestVersion);
+                        digestFromLoadedSnapshot.digestVersion, DigestCalculator.DIGEST_VERSION);
                 digestFromLoadedSnapshot = null;
                 return;
             }
@@ -1634,6 +1633,48 @@ public class DataTree {
             LOG.error("Watching for zxid 0x{} during snapshot recovery, " +
                     "but it wasn't found.", 
                     Long.toHexString(digestFromLoadedSnapshot.zxid));
+        }
+    }
+
+    /**
+     * Compares the digest of the tree with the digest present in transaction digest.
+     * If there is any error, logs and alerts the watchers.
+     *
+     * @param digest transaction digest
+     * @param zxid zxid of the transaction being applied.
+     */
+    public void compareDigest(TxnHeader header, Record txn, TxnDigest digest) {
+        long zxid = header.getZxid();
+
+        if (!DigestCalculator.digestEnabled() || digest == null) {
+            return false;
+        } 
+        // do not compare digest if we're still in fuzzy state
+        if (digestFromLoadedSnapshot != null) {
+            return;
+        }
+        // do not compare digest if there is digest version change
+        if (DigestCalculator.DIGEST_VERSION != digest.getVersion()) {
+            RATE_LOGGER.rateLimitLog("Digest version not the same on zxid.", 
+                    String.valueOf(zxid));
+            return;
+        }
+
+        long logDigest = digest.getTreeDigest();
+        long actualDigest = getTreeDigest();
+        if (logDigest != actualDigest) {
+            reportDigestMismatch(zxid);
+            LOG.debug("Digest in log: {}, actual tree: {}", logDigest, actualDigest);
+            if (firstMismatchTxn) {
+                LOG.error("First digest mismatch on txn: {}, {}, " +
+                        "expected digest is {}, actual digest is {}, ",
+                        header, txn, digest, actualDigest);
+                firstMismatchTxn = false;
+            }
+        } else {
+            RATE_LOGGER.flush();
+            LOG.debug("Digests are matching for Zxid: {}, Digest in log " +
+                    "and actual tree: {}", Long.toHexString(zxid), logDigest);
         }
     }
 
@@ -1720,5 +1761,26 @@ public class DataTree {
         public Long getDigest() {
             return digest;
         }
+    }
+
+    /**
+     * Create a node stat from the given params.
+     *
+     * @param zxid the zxid associated with the txn
+     * @param time the time when the txn is created
+     * @param ephemeralOwner the owner if the node is an ephemeral
+     * @return the stat
+     */
+    public static StatPersisted createStat(long zxid, long time, long ephemeralOwner) {
+        StatPersisted stat = new StatPersisted();
+        stat.setCtime(time);
+        stat.setMtime(time);
+        stat.setCzxid(zxid);
+        stat.setMzxid(zxid);
+        stat.setPzxid(zxid);
+        stat.setVersion(0);
+        stat.setAversion(0);
+        stat.setEphemeralOwner(ephemeralOwner);
+        return stat;
     }
 }

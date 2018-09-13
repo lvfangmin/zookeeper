@@ -22,6 +22,7 @@ import java.io.IOException;
 
 import org.apache.jute.Record;
 import org.apache.zookeeper.server.ServerStats;
+import org.apache.zookeeper.txn.TxnDigest;
 import org.apache.zookeeper.txn.TxnHeader;
 
 /**
@@ -49,7 +50,7 @@ public interface TxnLog {
      * returns true iff something appended, otw false 
      * @throws IOException
      */
-    boolean append(TxnHeader hdr, Record r) throws IOException;
+    boolean append(TxnHeader hdr, Record r, TxnDigest digest) throws IOException;
 
     /**
      * Start reading the transaction logs
@@ -116,6 +117,8 @@ public interface TxnLog {
          * @return return the transaction record.
          */
         Record getTxn();
+
+        TxnDigest getDigest();
      
         /**
          * go to the next transaction record.

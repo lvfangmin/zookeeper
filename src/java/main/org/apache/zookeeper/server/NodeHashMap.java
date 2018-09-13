@@ -84,11 +84,6 @@ public interface NodeHashMap {
     public void postChange(String path, DataNode node);
 
     /**
-     * Return true if the digest feature is enabled.
-     */
-    public boolean digestEnabled();
-
-    /**
      * Return the digest value.
      */
     public long getDigest();

@@ -31,7 +31,7 @@ import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.ZooKeeper.States;
 import org.apache.zookeeper.server.persistence.FileTxnSnapLog;
 import org.apache.zookeeper.server.quorum.QuorumPeerMainTest;
-import org.apache.zookeeper.server.util.AbstractDigestCalculator;
+import org.apache.zookeeper.server.util.DigestCalculator;
 import org.apache.zookeeper.test.ClientBase;
 
 import org.junit.After;
@@ -71,13 +71,13 @@ public class SnapshotDigestTest extends ClientBase {
 
     @Override
     public void setupCustomizedEnv() {
-        AbstractDigestCalculator.setDigestEnabled(true);
+        DigestCalculator.setDigestEnabled(true);
         System.setProperty(ZooKeeperServer.SNAP_COUNT, "100");
     }
 
     @Override
     public void cleanUpCustomizedEnv() {
-        AbstractDigestCalculator.setDigestEnabled(false);
+        DigestCalculator.setDigestEnabled(false);
         System.clearProperty(ZooKeeperServer.SNAP_COUNT);
     }
 
@@ -134,7 +134,7 @@ public class SnapshotDigestTest extends ClientBase {
     @Test
     public void testDifferentDigestVersion() throws Exception {
         // check the current digest version
-        int currentVersion = AbstractDigestCalculator.getDigestVersion();
+        int currentVersion = DigestCalculator.DIGEST_VERSION;
 
         // create a node
         String path = "/testDifferentDigestVersion";
@@ -146,15 +146,14 @@ public class SnapshotDigestTest extends ClientBase {
 
         // using reflection to change the final static DIGEST_VERSION
         int newVersion = currentVersion + 1;
-        Field field = 
-                AbstractDigestCalculator.class.getDeclaredField("DIGEST_VERSION");
+        Field field = DigestCalculator.class.getDeclaredField("DIGEST_VERSION");
         field.setAccessible(true);
         Field modifiersField = Field.class.getDeclaredField("modifiers");
         modifiersField.setAccessible(true);
         modifiersField.setInt(field, field.getModifiers() & ~Modifier.FINAL);
         field.set(null, newVersion);
 
-        Assert.assertEquals(newVersion, AbstractDigestCalculator.getDigestVersion());
+        Assert.assertEquals(newVersion, (int) DigestCalculator.DIGEST_VERSION);
 
         // using mock to return different digest value when the way we 
         // calculate digest changed
@@ -183,7 +182,7 @@ public class SnapshotDigestTest extends ClientBase {
     private void testCompatibleHelper(
             boolean enabledBefore, boolean enabledAfter) throws Exception {
 
-        AbstractDigestCalculator.setDigestEnabled(enabledBefore);
+        DigestCalculator.setDigestEnabled(enabledBefore);
 
         // restart the server to cache the option change
         reloadSnapshotAndCheckDigest();
@@ -196,7 +195,7 @@ public class SnapshotDigestTest extends ClientBase {
         // take a full snapshot
         server.takeSnapshot(); 
 
-        AbstractDigestCalculator.setDigestEnabled(enabledAfter);
+        DigestCalculator.setDigestEnabled(enabledAfter);
       
         reloadSnapshotAndCheckDigest();
 

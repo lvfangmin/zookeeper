@@ -53,6 +53,7 @@ import org.apache.zookeeper.server.quorum.QuorumPacket;
 import org.apache.zookeeper.server.quorum.flexible.QuorumVerifier;
 import org.apache.zookeeper.server.util.SerializeUtils;
 import org.apache.zookeeper.txn.TxnHeader;
+import org.apache.zookeeper.txn.TxnDigest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -232,8 +233,10 @@ public class ZKDatabase {
     }
 
     private final PlayBackListener commitProposalPlaybackListener = new PlayBackListener() {
-        public void onTxnLoaded(TxnHeader hdr, Record txn){
-            addCommittedProposal(hdr, txn);
+        public void onTxnLoaded(TxnHeader hdr, Record txn, TxnDigest digest){
+            Request r = new Request(0, hdr.getCxid(), hdr.getType(), hdr, txn, hdr.getZxid());
+            r.setTxnDigest(digest);
+            addCommittedProposal(r);
         }
     };
 
@@ -262,11 +265,6 @@ public class ZKDatabase {
         long zxid = snapLog.fastForwardFromEdits(dataTree, sessionsWithTimeouts, commitProposalPlaybackListener);
         initialized = true;
         return zxid;
-    }
-
-    private void addCommittedProposal(TxnHeader hdr, Record txn) {
-        Request r = new Request(0, hdr.getCxid(), hdr.getType(), hdr, txn, hdr.getZxid());
-        addCommittedProposal(r);
     }
 
     /**
@@ -438,11 +436,12 @@ public class ZKDatabase {
      * the process txn on the data
      * @param hdr the txnheader for the txn
      * @param txn the transaction that needs to be processed
+     * @param digest thhe digest associated with the txn
      * @return the result of processing the transaction on this
      * datatree/zkdatabase
      */
-    public ProcessTxnResult processTxn(TxnHeader hdr, Record txn) {
-        return dataTree.processTxn(hdr, txn);
+    public ProcessTxnResult processTxn(TxnHeader hdr, Record txn, TxnDigest digest) {
+        return dataTree.processTxn(hdr, txn, digest);
     }
 
     /**
@@ -659,5 +658,9 @@ public class ZKDatabase {
     // visible for testing
     public DataTree createDataTree() {
         return new DataTree();
+    }
+
+    public void compareDigest(TxnHeader header, Record txn, TxnDigest digest) {
+        dataTree.compareDigest(header, txn, digest);
     }
 }

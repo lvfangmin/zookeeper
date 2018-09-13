@@ -296,6 +296,7 @@ public class CommitProcessor extends ZooKeeperCriticalThread implements
                              */
                             topPending.setHdr(request.getHdr());
                             topPending.setTxn(request.getTxn());
+                            topPending.setTxnDigest(request.getTxnDigest());
                             topPending.zxid = request.zxid;
                             request = topPending;
                         }

@@ -26,8 +26,10 @@ import org.apache.zookeeper.server.ObserverBean;
 import org.apache.zookeeper.server.Request;
 import org.apache.zookeeper.server.quorum.QuorumPeer.QuorumServer;
 import org.apache.zookeeper.server.quorum.flexible.QuorumVerifier;
+import org.apache.zookeeper.server.TxnLogEntry;
 import org.apache.zookeeper.server.util.SerializeUtils;
 import org.apache.zookeeper.txn.SetDataTxn;
+import org.apache.zookeeper.txn.TxnDigest;
 import org.apache.zookeeper.txn.TxnHeader;
 
 /**
@@ -99,6 +101,11 @@ public class Observer extends Learner{
      * @throws Exception 
      */
     protected void processPacket(QuorumPacket qp) throws Exception{
+        TxnLogEntry logEntry;
+        TxnHeader hdr;
+        TxnDigest digest;
+        Record txn;
+
         switch (qp.getType()) {
         case Leader.PING:
             ping(qp);
@@ -119,9 +126,12 @@ public class Observer extends Learner{
             ((ObserverZooKeeperServer)zk).sync();
             break;
         case Leader.INFORM:
-            TxnHeader hdr = new TxnHeader();
-            Record txn = SerializeUtils.deserializeTxn(qp.getData(), hdr);
+            logEntry = SerializeUtils.deserializeTxn(qp.getData());
+            hdr = logEntry.getHeader();
+            txn = logEntry.getTxn();
+            digest = logEntry.getDigest();
             Request request = new Request (hdr.getClientId(),  hdr.getCxid(), hdr.getType(), hdr, txn, 0);
+            request.setTxnDigest(digest);
             ObserverZooKeeperServer obs = (ObserverZooKeeperServer)zk;
             obs.commitRequest(request);
             break;
@@ -134,10 +144,14 @@ public class Observer extends Learner{
            
             byte[] remainingdata = new byte[buffer.remaining()];
             buffer.get(remainingdata);
-            txn = SerializeUtils.deserializeTxn(remainingdata, hdr);
+            logEntry = SerializeUtils.deserializeTxn(remainingdata);
+            hdr = logEntry.getHeader();
+            txn = logEntry.getTxn();
+            digest = logEntry.getDigest();
             QuorumVerifier qv = self.configFromString(new String(((SetDataTxn)txn).getData()));
             
             request = new Request (hdr.getClientId(),  hdr.getCxid(), hdr.getType(), hdr, txn, 0);
+            request.setTxnDigest(digest);
             obs = (ObserverZooKeeperServer)zk;
                         
             boolean majorChange = 

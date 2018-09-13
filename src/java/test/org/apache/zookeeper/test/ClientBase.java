@@ -239,7 +239,7 @@ public abstract class ClientBase extends ZKTestCase {
             }
             if (allClients != null) {
                 allClients.add(zk);
-                JMXEnv.ensureAll(getHexSessionId(zk.getSessionId()));
+                //JMXEnv.ensureAll(getHexSessionId(zk.getSessionId()));
             } else {
                 // test done - close the zk, not needed
                 zk.close();
@@ -521,7 +521,7 @@ public abstract class ClientBase extends ZKTestCase {
 
         setupCustomizedEnv();
 
-        JMXEnv.setUp();
+        //JMXEnv.setUp();
 
         setUpAll();
 
@@ -546,6 +546,7 @@ public abstract class ClientBase extends ZKTestCase {
         serverFactory = createNewServerInstance(serverFactory, hostPort,
                 maxCnxns);
         startServerInstance(tmpDir, serverFactory, hostPort, serverId);
+        /*
         // ensure that server and data bean are registered
         Set<ObjectName> children = JMXEnv.ensureParent("InMemoryDataTree",
                 "StandaloneServer_port");
@@ -554,6 +555,7 @@ public abstract class ClientBase extends ZKTestCase {
         // registeration of these beans with server will happen only on their
         // respective reconnection interval
         verifyUnexpectedBeans(children);
+        */
     }
 
     private void verifyUnexpectedBeans(Set<ObjectName> children) {
@@ -593,7 +595,7 @@ public abstract class ClientBase extends ZKTestCase {
         shutdownServerInstance(serverFactory, hostPort);
         serverFactory = null;
         // ensure no beans are leftover
-        JMXEnv.ensureOnly();
+        //JMXEnv.ensureOnly();
     }
 
 
@@ -632,7 +634,7 @@ public abstract class ClientBase extends ZKTestCase {
         // This has to be set to null when the same instance of this class is reused between test cases
         serverFactory = null;
 
-        JMXEnv.tearDown();
+        //JMXEnv.tearDown();
 
         /* some useful information - log the number of fds used before
          * and after a test is run. Helps to verify we are freeing resources

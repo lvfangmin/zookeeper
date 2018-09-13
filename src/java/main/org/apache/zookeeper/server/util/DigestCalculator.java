@@ -1,4 +1,4 @@
-/*
+/**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -18,23 +18,35 @@
 
 package org.apache.zookeeper.server.util;
 
-import org.apache.zookeeper.ZooDefs;
-import org.apache.zookeeper.data.StatPersisted;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import java.nio.ByteBuffer;
 import java.util.zip.CRC32;
 
-/**
- * Using CRC to calculate the digest for the given data.
- */
-public class CRC32DigestCalculator extends AbstractDigestCalculator {
+import org.apache.zookeeper.ZooDefs;
+import org.apache.zookeeper.data.StatPersisted;
+import org.apache.zookeeper.server.DataNode;
 
-    private static final Logger LOG = LoggerFactory.getLogger(
-            CRC32DigestCalculator.class);
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Defines how to calculate the digest for a given node.
+ */
+public class DigestCalculator {
+
+    private static final Logger LOG = LoggerFactory.getLogger(DigestCalculator.class);
+
+    // The hardcoded digest version, should bump up this version whenever 
+    // we changed the digest method or fields.
+    //
+    // Defined it as Integer to make it able to be changed in test via reflection
+    public static final Integer DIGEST_VERSION = 1;
+
+    public static final String ZOOKEEPER_DIGEST_ENABLED = "zookeeper.digest.enabled";
+    private static boolean digestEnabled = Boolean.getBoolean(ZOOKEEPER_DIGEST_ENABLED);
 
     /** 
+     * Calculate the digest based on the given params.
+     *
      * Besides the path and data, the following stat fields are included in 
      * the digest calculation:
      *
@@ -50,10 +62,15 @@ public class CRC32DigestCalculator extends AbstractDigestCalculator {
      *
      * Specific aliase like "/" and nodes under "/zookeeper/" are ignored 
      * for now.
+     *
+     * @param path the path of the node 
+     * @param data the data of the node
+     * @param stat the stat associated with the node
+     * @return the digest calculated from the given params
      */
-    @Override
-    public long calculateDigest(String path, byte[] data, StatPersisted stat) {
-        if(!digestEnabled()) {
+    public static long calculateDigest(String path, byte[] data, StatPersisted stat) {
+
+        if (!digestEnabled()) {
             return 0;
         }
 
@@ -69,9 +86,6 @@ public class CRC32DigestCalculator extends AbstractDigestCalculator {
         if (path.startsWith(ZooDefs.ZOOKEEPER_NODE_SUBTREE)) {
             return 0;
         }
-
-        LOG.debug("Calculating digest for path {}, data {}, stat {}.", 
-                path, data, stat);
 
         // total = 8 * 6 + 4 * 3 = 60 bytes
         byte b[] = new byte[60];
@@ -93,5 +107,40 @@ public class CRC32DigestCalculator extends AbstractDigestCalculator {
         }
         crc.update(b);
         return crc.getValue();
+    }
+
+
+    /**
+     * Calculate the digest based on the given path ande data node.
+     */
+    public static long calculateDigest(String path, DataNode node) {
+        // This is to have a consistent digest value for "" and "/", the
+        // two paths pointing to root. Not going to calculate the digest
+        // for aliases.
+        //
+        // Have to do it here before calling the calculateDigest implemented
+        // in sub classes, because during deserialize we'll put the same node
+        // again which was representing "".
+        if ("/".equals(path)) {
+            return 0;
+        }
+
+        if (!node.isDigestCached()) {
+            node.setDigest(calculateDigest(path, node.getData(), node.stat));
+            node.setDigestCached(true);
+        }
+        return node.getDigest();
+    }
+
+    /**
+     * Return true if the digest is enabled.
+     */
+    public static boolean digestEnabled() {
+        return digestEnabled;
+    }
+
+    // Visible for test purpose
+    public static void setDigestEnabled(boolean enabled) {
+        digestEnabled = enabled;
     }
 }

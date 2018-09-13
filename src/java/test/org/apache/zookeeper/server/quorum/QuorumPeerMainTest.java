@@ -52,6 +52,7 @@ import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.PortAssignment;
 import org.apache.zookeeper.Watcher;
+import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.ZooDefs.OpCode;
 import org.apache.zookeeper.ZooKeeper;
 import org.apache.zookeeper.ZooDefs.Ids;
@@ -464,7 +465,7 @@ public class QuorumPeerMainTest extends QuorumPeerTestBase {
         }
     }
 
-    private void waitForAll(Servers servers, States state) throws InterruptedException {
+    public static void waitForAll(Servers servers, States state) throws InterruptedException {
         waitForAll(servers.zk, state);
     }
 
@@ -499,7 +500,7 @@ public class QuorumPeerMainTest extends QuorumPeerTestBase {
     }
 
     // This class holds the servers and clients for those servers
-    private static class Servers {
+    public static class Servers {
         MainThread mt[];
         ZooKeeper zk[];
         int[] clientPorts;
@@ -536,11 +537,33 @@ public class QuorumPeerMainTest extends QuorumPeerTestBase {
             }
             return -1;
         }
+
+        public int findAnyFollower() {
+             for (int i = 0; i < mt.length; i++) {
+                if (mt[i].main.quorumPeer.follower != null) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        public int findAnyObserver() {
+            for (int i = 0; i < mt.length; i++) {
+                if (mt[i].main.quorumPeer.observer != null) {
+                    return i;
+                }
+            }
+            return -1;
+        }
     }
 
 
-  	private Servers LaunchServers(int numServers) throws IOException, InterruptedException {
+    public static Servers LaunchServers(int numServers) throws IOException, InterruptedException {
   	    return LaunchServers(numServers, null);
+    }
+
+    public static Servers LaunchServers(int numServers, Integer tickTime) throws IOException, InterruptedException {
+        return LaunchServers(numServers, 0, tickTime);
     }
 
     /** * This is a helper function for launching a set of servers
@@ -551,14 +574,17 @@ public class QuorumPeerMainTest extends QuorumPeerTestBase {
   	 * @throws IOException
   	 * @throws InterruptedException
   	 */
-  	private Servers LaunchServers(int numServers, Integer tickTime) throws IOException, InterruptedException {
-  	    int SERVER_COUNT = numServers;
+    public static Servers LaunchServers(int numServers, int numObservers, Integer tickTime) throws IOException, InterruptedException {
+        int SERVER_COUNT = numServers + numObservers;
   	    Servers svrs = new Servers();
   	    svrs.clientPorts = new int[SERVER_COUNT];
   	    StringBuilder sb = new StringBuilder();
   	    for(int i = 0; i < SERVER_COUNT; i++) {
   	        svrs.clientPorts[i] = PortAssignment.unique();
-  	        sb.append("server."+i+"=127.0.0.1:"+PortAssignment.unique()+":"+PortAssignment.unique()+";"+svrs.clientPorts[i]+"\n");
+            String role = i < numServers ? "participant" : "observer";
+            sb.append(String.format("server.%d=127.0.0.1:%d:%d:%s;127.0.0.1:%d\n",
+                    i, PortAssignment.unique(), PortAssignment.unique(), role,
+                    svrs.clientPorts[i]));
   	    }
   	    String quorumCfgSection = sb.toString();
 
@@ -571,7 +597,12 @@ public class QuorumPeerMainTest extends QuorumPeerTestBase {
   	            svrs.mt[i] = new MainThread(i, svrs.clientPorts[i], quorumCfgSection);
             }
             svrs.mt[i].start();
-  	        svrs.restartClient(i, this);
+            svrs.restartClient(i, new Watcher() {
+                @Override
+                public void process(WatchedEvent event) {
+                    // ignore
+                }
+            });
   	    }
 
   	    waitForAll(svrs, States.CONNECTED);

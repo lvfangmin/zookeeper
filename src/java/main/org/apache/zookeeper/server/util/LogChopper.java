@@ -24,6 +24,7 @@ import org.apache.yetus.audience.InterfaceAudience;
 import org.apache.zookeeper.server.ExitCode;
 import org.apache.zookeeper.server.persistence.FileHeader;
 import org.apache.zookeeper.server.persistence.FileTxnLog;
+import org.apache.zookeeper.server.TxnLogEntry;
 import org.apache.zookeeper.txn.TxnHeader;
 
 import java.io.BufferedInputStream;
@@ -112,8 +113,9 @@ public class LogChopper {
                 throw new IOException("CRC doesn't match " + crcValue +
                         " vs " + crc.getValue());
             }
-            TxnHeader hdr = new TxnHeader();
-            Record txn = SerializeUtils.deserializeTxn(bytes, hdr);
+            TxnLogEntry logEntry = SerializeUtils.deserializeTxn(bytes);
+            TxnHeader hdr = logEntry.getHeader();
+            Record txn = logEntry.getTxn();
             if (logStream.readByte("EOR") != 'B') {
                 System.out.println("Last transaction was partial.");
                 throw new EOFException("Last transaction was partial.");

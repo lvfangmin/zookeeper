@@ -29,7 +29,7 @@ import org.apache.zookeeper.server.DataTree;
 import org.apache.zookeeper.server.persistence.FileHeader;
 import org.apache.zookeeper.server.persistence.FileTxnLog;
 import org.apache.zookeeper.server.persistence.FileTxnSnapLog;
-import org.apache.zookeeper.server.util.AbstractDigestCalculator;
+import org.apache.zookeeper.server.util.DigestCalculator;
 import org.apache.zookeeper.txn.CreateTxn;
 import org.apache.zookeeper.txn.DeleteTxn;
 import org.apache.zookeeper.txn.MultiTxn;
@@ -57,7 +57,7 @@ public class LoadFromLogNoServerTest extends ZKTestCase {
     @Test
     public void testTxnFailure() throws Exception {
         try {
-            AbstractDigestCalculator.setDigestEnabled(true);
+            DigestCalculator.setDigestEnabled(true);
 
             long count = 1;
             File tmpDir = ClientBase.createTmpDir();
@@ -100,7 +100,7 @@ public class LoadFromLogNoServerTest extends ZKTestCase {
             // LOG.info("Attempting to delete " + "/test/" + (count + 1));
             // doOp(logFile, OpCode.delete, "/test/" + (count + 1), dt, zk);
         } finally {
-            AbstractDigestCalculator.setDigestEnabled(false);
+            DigestCalculator.setDigestEnabled(false);
         }
     }
 

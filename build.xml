@@ -26,6 +26,7 @@ xmlns:cs="antlib:com.puppycrawl.tools.checkstyle.ant">
     <!-- ====================================================== -->
     <!-- Dependency versions                                    -->
     <!-- ====================================================== -->
+    <property name="jmockit.version" value="1.25"/>
     <property name="slf4j.version" value="1.7.25"/>
     <property name="commons-cli.version" value="1.2"/>
 

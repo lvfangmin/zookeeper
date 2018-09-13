@@ -37,6 +37,7 @@ import org.apache.zookeeper.server.ServerStats;
 import org.apache.zookeeper.server.ZooTrace;
 import org.apache.zookeeper.server.persistence.TxnLog.TxnIterator;
 import org.apache.zookeeper.txn.CreateSessionTxn;
+import org.apache.zookeeper.txn.TxnDigest;
 import org.apache.zookeeper.txn.TxnHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,7 +80,7 @@ public class FileTxnSnapLog {
      * restored.
      */
     public interface PlayBackListener {
-        void onTxnLoaded(TxnHeader hdr, Record rec);
+        void onTxnLoaded(TxnHeader hdr, Record rec, TxnDigest digest);
     }
 
     /**
@@ -244,7 +245,19 @@ public class FileTxnSnapLog {
                 return -1L;
             }
         }
-        return fastForwardFromEdits(dt, sessions, listener);
+        long highestZxid = fastForwardFromEdits(dt, sessions, listener);
+        // The snapshotZxidDigest will reset after replaying the txn of the
+        // zxid in the snapshotZxidDigest, if it's not reset to null after
+        // restoring, it means either there are not enough txns to cover that
+        // zxid or that txn is missing
+        DataTree.ZxidDigest snapshotZxidDigest = dt.getDigestFromLoadedSnapshot();
+        if (snapshotZxidDigest != null) {
+            LOG.warn("Highest txn zxid 0x{} is not covering the snapshot " +
+                    "digest zxid 0x{}, which might lead to inconsistent state",
+                    Long.toHexString(highestZxid), 
+                    Long.toHexString(snapshotZxidDigest.getZxid()));
+        }
+        return highestZxid;
     }
 
     /**
@@ -280,11 +293,12 @@ public class FileTxnSnapLog {
                 }
                 try {
                     processTransaction(hdr,dt,sessions, itr.getTxn());
+                    dt.compareDigest(hdr, itr.getTxn(), itr.getDigest());
                 } catch(KeeperException.NoNodeException e) {
                    throw new IOException("Failed to process transaction type: " +
                          hdr.getType() + " error: " + e.getMessage(), e);
                 }
-                listener.onTxnLoaded(hdr, itr.getTxn());
+                listener.onTxnLoaded(hdr, itr.getTxn(), itr.getDigest());
                 if (!itr.next())
                     break;
             }
@@ -322,7 +336,7 @@ public class FileTxnSnapLog {
         FileTxnLog txnLog = new FileTxnLog(dataDir);
         return txnLog.read(zxid, fastForward);
     }
-    
+
     /**
      * process the transaction on the datatree
      * @param hdr the hdr of the transaction
@@ -442,7 +456,7 @@ public class FileTxnSnapLog {
         truncLog.close();
 
         // re-open the txnLog and snapLog
-        // I'd rather just close/reopen this object itself, however that 
+        // I'd rather just close/reopen this object itself, however that
         // would have a big impact outside ZKDatabase as there are other
         // objects holding a reference to this object.
         txnLog = new FileTxnLog(dataDir);
@@ -495,7 +509,7 @@ public class FileTxnSnapLog {
      * @throws IOException
      */
     public boolean append(Request si) throws IOException {
-        return txnLog.append(si.getHdr(), si.getTxn());
+        return txnLog.append(si.getHdr(), si.getTxn(), si.getTxnDigest());
     }
 
     /**

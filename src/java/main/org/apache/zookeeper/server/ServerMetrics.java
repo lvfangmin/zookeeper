@@ -87,7 +87,7 @@ public enum ServerMetrics {
         metric.reset();
     }
 
-    Map<String, Long> getValues() {
+    public Map<String, Long> getValues() {
         return metric.values();
     }
 

@@ -23,7 +23,7 @@ import java.util.Map;
 
 import org.apache.zookeeper.ZKTestCase;
 import org.apache.zookeeper.data.StatPersisted;
-import org.apache.zookeeper.server.util.AbstractDigestCalculator;
+import org.apache.zookeeper.server.util.DigestCalculator;
 
 import org.junit.After;
 import org.junit.Before;
@@ -34,13 +34,12 @@ public class NodeHashMapImplTest extends ZKTestCase {
 
     @Before
     public void setUp() {
-        System.setProperty(
-                AbstractDigestCalculator.ZOOKEEPER_DIGEST_ENABLED, "true");
+        DigestCalculator.setDigestEnabled(true);
     }
 
     @After
     public void tearDown() {
-        System.clearProperty(AbstractDigestCalculator.ZOOKEEPER_DIGEST_ENABLED);
+        DigestCalculator.setDigestEnabled(false);
     }
 
     /**
@@ -49,7 +48,6 @@ public class NodeHashMapImplTest extends ZKTestCase {
     @Test
     public void testOperations() {
         NodeHashMapImpl nodes = new NodeHashMapImpl();
-        Assert.assertTrue(nodes.digestEnabled());
 
         Assert.assertEquals(0, nodes.size());
         Assert.assertEquals(0L, nodes.getDigest());
