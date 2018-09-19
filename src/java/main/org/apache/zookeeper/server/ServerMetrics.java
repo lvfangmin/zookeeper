@@ -67,7 +67,11 @@ public enum ServerMetrics {
     SNAP_COUNT(new SimpleCounter("snap_count")),
     COMMIT_COUNT(new SimpleCounter("commit_count")),
     CONNECTION_REQUEST_COUNT(new SimpleCounter("connection_request_count")),
-    BYTES_RECEIVED_COUNT(new SimpleCounter("bytes_received_count"));
+    BYTES_RECEIVED_COUNT(new SimpleCounter("bytes_received_count")),
+
+    // Total number of digest mismatches that are observed when applying 
+    // txns to data tree.
+    DIGEST_MISMATCHES_COUNT(new SimpleCounter("digest_mismatches_count"));
 
     private final Metric metric;
 
