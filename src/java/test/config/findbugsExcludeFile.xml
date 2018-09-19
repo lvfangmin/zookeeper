@@ -65,7 +65,7 @@
 
   <Match>
     <Class name="org.apache.zookeeper.server.DataNode" />
-      <Bug code="EI2"/>
+      <Bug code="EI2, EI"/>
   </Match>
 
   <Match>

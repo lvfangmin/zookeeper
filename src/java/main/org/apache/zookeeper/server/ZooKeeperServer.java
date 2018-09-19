@@ -134,6 +134,8 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     private ZooKeeperServerShutdownHandler zkShutdownHandler;
     private volatile int createSessionTrackerServerId = 1;
 
+    public static final String SNAP_COUNT = "zookeeper.snapCount";
+
     void removeCnxn(ServerCnxn cnxn) {
         zkDb.removeCnxn(cnxn);
     }
@@ -843,7 +845,7 @@ public class ZooKeeperServer implements SessionExpirer, ServerStats.Provider {
     }
 
     public static int getSnapCount() {
-        String sc = System.getProperty("zookeeper.snapCount");
+        String sc = System.getProperty(SNAP_COUNT);
         try {
             int snapCount = Integer.parseInt(sc);
 

@@ -1025,6 +1025,20 @@ server.3=zoo3:2888:3888</programlisting>
             </listitem>
           </varlistentry>
 
+          <varlistentry>
+            <term>digest.enabled</term>
+
+            <listitem>
+              <para>(Java system property: <emphasis
+              role="bold">zookeeper.digest.enabled</emphasis>)</para>
+
+              <para><emphasis role="bold">New in 3.6.0:</emphasis>
+              The digest feature is added to self-verify the correctness inside
+              ZooKeeper when loading database from disk, and syncing with leader.
+              By default, this feautre is disabled, set "true" to enable it.</para>
+            </listitem>
+          </varlistentry>
+
         </variablelist>
       </section>
 
@@ -2116,6 +2130,16 @@ server.3=zoo3:2888:3888</programlisting>
               </programlisting>
             </listitem>
           </varlistentry>
+
+          <varlistentry>
+            <term>hash</term>
+
+            <listitem>
+              <para><emphasis role="bold">New in 3.6.0:</emphasis> Return the 
+              latest history of the tree digest associated with zxid.</para>
+            </listitem>
+          </varlistentry>
+
         </variablelist>
 
         <para>Here's an example of the <emphasis role="bold">ruok</emphasis>
