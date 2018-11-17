@@ -893,6 +893,13 @@ property, when available, is noted below.
     pipeline to avoid direct buffer OOM. It will disable the AUTO_READ in
     Netty.
 
+* *digest.enabled* :
+    (Java system property: **zookeeper.digest.enabled**)
+    **New in 3.6.0:**
+    The digest feature is added to self-verify the correctness inside
+    ZooKeeper when loading database from disk, and syncing with leader.
+    By default, this feautre is disabled, set "true" to enable it.
+
 <a name="sc_clusterOptions"></a>
 
 #### Cluster Options
@@ -1759,6 +1766,10 @@ The output contains multiple lines with the following format:
     **New in 3.4.0:** Tests if
     server is running in read-only mode.  The server will respond with
     "ro" if in read-only mode or "rw" if not in read-only mode.
+
+* *hash* :
+    **New in 3.6.0:**
+    Return the latest history of the tree digest associated with zxid.
 
 * *gtmk* :
     Gets the current trace mask as a 64-bit signed long value in
