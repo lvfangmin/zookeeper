@@ -1722,6 +1722,10 @@ public class DataTree {
         return nodes.getDigest();
     }
 
+    public ZxidDigest getLastProcessedZxidDigest() {
+        return lastProcessedZxidDigest;
+    }
+
     public ZxidDigest getDigestFromLoadedSnapshot() {
         return digestFromLoadedSnapshot;
     }
@@ -1776,6 +1780,7 @@ public class DataTree {
         public void deserialize(InputArchive ia) throws IOException {
             zxid = ia.readLong("zxid");
             digestVersion = ia.readInt("digestVersion");
+            LOG.info("digest version is {}", digestVersion);
             // the old version is using hex string as the digest
             if (digestVersion < 2) {
                 String d = ia.readString("digest");
